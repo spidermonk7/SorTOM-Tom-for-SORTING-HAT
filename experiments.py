@@ -50,24 +50,35 @@ class TextDataset(Dataset):
         return embedded_state, label
 
 
-
+### Modified by Yichen
 
 class TrajectoryDataset(Dataset):
-    def __init__(self, character="Slytherin", alpha=[0.9], model_name='bert-base-uncased', max_length=230, window_size = 2):
+    def __init__(self, character="Slytherin", alpha=[0.9], model_name='bert-base-uncased', max_length=230, window_size = 2, is_test=False):
         self.character = character
         self.alpha = alpha
         self.max_length = max_length
         self.model_name = model_name
         
         # 加载预先保存的 BERT 嵌入数据
-        embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_embedded.npy"
-        trajectory_embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_trajectory_embedded.npy"
-        self.embeddings = np.load(embeddings_path)  # 加载嵌入数据
-        self.traj_embeddings = np.load(trajectory_embeddings_path)  # 加载嵌入数据
+        if is_test:
+            embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_embedded-test.npy"
+            trajectory_embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_trajectory_embedded-test.npy"
+            self.embeddings = np.load(embeddings_path)  # 加载嵌入数据
+            self.traj_embeddings = np.load(trajectory_embeddings_path)  # 加载嵌入数据
 
-        # 加载标签
-        labels_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_labels.npy"
-        self.labels = np.load(labels_path)  # 加载标签数据
+            # 加载标签
+            labels_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_labels-test.npy"
+            self.labels = np.load(labels_path)  # 加载标签数据
+
+        else:
+            embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_embedded-test.npy"
+            trajectory_embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_trajectory_embedded-test.npy"
+            self.embeddings = np.load(embeddings_path)  # 加载嵌入数据
+            self.traj_embeddings = np.load(trajectory_embeddings_path)  # 加载嵌入数据
+
+            # 加载标签
+            labels_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_labels.npy"
+            self.labels = np.load(labels_path)  # 加载标签数据
 
     def __len__(self):
         return len(self.embeddings)
@@ -124,6 +135,7 @@ def experiment1_Simple_S_A_prediction(model_name = "SimpleMLP", input_size=230, 
     model = eval(model_name)(input_size=input_size, output_size=output_size, hidden_size=hidden_size)
 
     text_dataset = TextDataset(character='Hogwarts', alpha=0.9)
+    print(text_dataset.shape)
     # split text dataset into train and test
     train_size = int(0.9 * len(text_dataset))
     test_size = len(text_dataset) - train_size
@@ -179,15 +191,19 @@ def experiment1_Simple_S_A_prediction(model_name = "SimpleMLP", input_size=230, 
     plt.show()
 
 
-
+### Modified by Yichen
 def experiment2_Chara_Ment_Ss_A_prediction(window_size = 3):
     assert window_size in [2, 3, 4, 5, 6] , "window_size should be one of 2, 3, 4"
 
-    dataset = TrajectoryDataset(character='Hogwarts', alpha=0.9, window_size=window_size)
+    test_dataset = TrajectoryDataset(character='Hogwarts', alpha=0.9, window_size=window_size, is_test=True)
+    train_dataset = TrajectoryDataset(character='Hogwarts', alpha=0.9, window_size=window_size, is_test=False)
+
+
     # split train and test
-    train_size = int(0.9 * len(dataset))
-    test_size = len(dataset) - train_size
-    train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
+    # dataset = TrajectoryDataset(character='Hogwarts', alpha=0.9, window_size=window_size, is_test=False)
+    # train_size = int(0.9*len(dataset))
+    # test_size = len(dataset)-train_size
+    # train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
 
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
@@ -197,12 +213,12 @@ def experiment2_Chara_Ment_Ss_A_prediction(window_size = 3):
     optimizer = torch.optim.Adam(params=sorthat_model.parameters(), lr=0.00001)
     loss_function = nn.CrossEntropyLoss()
 
-    epochs = 30
+    epochs = 100
     test_losses = []
     train_losses = []
     accs = []
     print("Start training...")
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs)):
         losses = []
         for train_trajectory, train_data, train_label in train_loader:
             optimizer.zero_grad()
@@ -228,8 +244,8 @@ def experiment2_Chara_Ment_Ss_A_prediction(window_size = 3):
 
             acc = correct / len(test_loader)
             accs.append(acc)
-            print(f"Epoch {epoch+1}: Validation Accuracy is {acc}")
-        print(f"Epoch {epoch+1}: Train Loss is {train_losses[-1]}")
+        #     print(f"Epoch {epoch+1}: Validation Accuracy is {acc}")
+        # print(f"Epoch {epoch+1}: Train Loss is {train_losses[-1]}")
 
 
     fig, ax = plt.subplots(3, 1, figsize=(10, 15))
@@ -257,7 +273,7 @@ def experiment2_Chara_Ment_Ss_A_prediction(window_size = 3):
 
 
     check_path("./results")
-    plt.savefig("./results/SortingHat.png")
+    plt.savefig("./results/SortingHat_"+str(window_size)+".png")
     
 
 
@@ -381,7 +397,9 @@ if __name__ == "__main__":
     # print(f"====Experiment 1: Simple State and Action Prediction====")
     # experiment1_Simple_S_A_prediction(model_name = "SimpleMLP", input_size=230, output_size=6, hidden_size=128)
     print(f"====Experiment 2: Character, Ment and State Action Prediction====")
-    # experiment2_Chara_Ment_Ss_A_prediction(window_size = 6)
-    character_ana(window_size=6)
+    for i in range(2, 7):
+        print("########### Window Size = "+str(i)+" ##############")
+        experiment2_Chara_Ment_Ss_A_prediction(window_size=i)
+        character_ana(window_size=i)
 
 

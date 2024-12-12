@@ -79,17 +79,41 @@ def run_batch(character="Gryffindor", game="dnd", max_step=7, record_window=3, p
         with open(f"dataset/final_data_en/{game}_batch{id}_{character}.json", "w") as file:
             json.dump(history, file)        
 
-def load_data(game, character):
+# def load_data(game, character):
+#     dataset = []
+#     for id in range(19):
+#         file_path = f"./dataset/final_data_en/{game}_batch{id}_{character}.json"
+#         if os.path.exists(file_path):
+#             with open(file_path, "r") as file:
+#                 data = json.load(file)
+#                 dataset.append(data)
+#         else:
+#             raise ValueError(f"The file {file_path} does not exist")
+#     return dataset
+
+### Modified by Yichen
+def load_data(game, character, is_test=False):
     dataset = []
-    for id in range(19):
-        file_path = f"./dataset/final_data_en/{game}_batch{id}_{character}.json"
-        if os.path.exists(file_path):
-            with open(file_path, "r") as file:
-                data = json.load(file)
-                dataset.append(data)
-        else:
-            raise ValueError(f"The file {file_path} does not exist")
-    return dataset
+    if is_test:
+        for id in range(16, 19):
+            file_path = f"./dataset/final_data_en/{game}_batch{id}_{character}.json"
+            if os.path.exists(file_path):
+                with open(file_path, "r") as file:
+                    data = json.load(file)
+                    dataset.append(data)
+            else:
+                raise ValueError(f"The file {file_path} does not exist")
+        return dataset
+    else:
+        for id in range(16):
+            file_path = f"./dataset/final_data_en/{game}_batch{id}_{character}.json"
+            if os.path.exists(file_path):
+                with open(file_path, "r") as file:
+                    data = json.load(file)
+                    dataset.append(data)
+            else:
+                raise ValueError(f"The file {file_path} does not exist")
+        return dataset
 
 def action_distribution_ana():
     fig, ax = plt.subplots(2, 2, figsize=(10, 10))
@@ -197,12 +221,12 @@ def got_SA_embeded():
         label_path = f"./dataset/character_wise/embedded/{character}_labels.npy"
         np.save(label_path, np.array(labels))  # 保存标签数据
 
-
-def get_trajectory_txt(character="Ravenclaw", window_size=6):
+### Modified by Yichen
+def get_trajectory_txt(character="Ravenclaw", window_size=6, is_test=False):
     state_action_pair = {}
 
     if character != "Hogwarts":
-        data = load_data(game="dnd", character=character)
+        data = load_data(game="dnd", character=character, is_test=is_test)
         for batch_id, batch_data in enumerate(data):
             print(f"Handling data batch {batch_id} of character {character}")
             for id in range(window_size, len(batch_data)):
@@ -210,25 +234,37 @@ def get_trajectory_txt(character="Ravenclaw", window_size=6):
                 state_action_pair[f"{character}_batch{batch_id}_step{id}"] = s_a
 
     else:
-        for character in ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]:
-            data = load_data(game="dnd", character=character)
+        for characters in ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]:
+            data = load_data(game="dnd", character=characters, is_test=is_test)
             for batch_id, batch_data in enumerate(data):
-                print(f"Handling data batch {batch_id} of character {character}")
+                print(f"Handling data batch {batch_id} of character {characters}")
                 for id in range(window_size, len(batch_data)):
                     s_a = {"trajectory": [(batch_data[str(i)]['current_obs'], batch_data[str(i)]['action']) for i in range(id - window_size, id)], "action":batch_data[str(id)]['action'], "state":batch_data[str(id)]['current_obs']}
-                    state_action_pair[f"{character}_batch{batch_id}_step{id}"] = s_a
+                    state_action_pair[f"{characters}_batch{batch_id}_step{id}"] = s_a
 
-    check_path(f"./dataset/Trajectory/window_{window_size}/")
-    with open(f"./dataset/Trajectory/window_{window_size}/{character}.json", "w") as file:
-            json.dump(state_action_pair, file)
-            
-def got_trajectory_embeded(window_size = 2, character = "Slytherin"):
-    path = f"./dataset/Trajectory/window_{window_size}/{character}.json"
+    if is_test:
+        check_path(f"./dataset/Trajectory/window_{window_size}/")
+        with open(f"./dataset/Trajectory/window_{window_size}/{character}-test.json", "w") as file:
+                json.dump(state_action_pair, file)
+    else:
+        check_path(f"./dataset/Trajectory/window_{window_size}/")
+        with open(f"./dataset/Trajectory/window_{window_size}/{character}.json", "w") as file:
+                json.dump(state_action_pair, file)
+                
+### Modified by Yichen           
+def got_trajectory_embeded(window_size = 2, character = "Slytherin", is_test=False):
+
+    if is_test:
+        path = f"./dataset/Trajectory/window_{window_size}/{character}-test.json"
+    else:
+        path = f"./dataset/Trajectory/window_{window_size}/{character}.json"
+        
     with open(path, 'r') as file:
         data = json.load(file)
 
     # 存储嵌入的列表
     embeddings = []
+
     embeddings_trajectories = []
     labels = []  # 标签列表，用于后续训练
     label_dic = {"Explore": 0, "Help": 1, "Refuse": 2, "Betray": 3, "Fight": 4, "Escape": 5}
@@ -275,15 +311,27 @@ def got_trajectory_embeded(window_size = 2, character = "Slytherin"):
 
     check_path(f"./dataset/Trajectory/embedded/window_{window_size}/")
     # 将嵌入数据保存为 .npy 文件
-    embedding_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_all_embedded.npy"
-    np.save(embedding_path, np.array(embeddings))  # 保存为 NumPy 文件
 
-    embedding_trajectory_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_all_trajectory_embedded.npy"
-    np.save(embedding_trajectory_path, np.array(embeddings_trajectories))  # 保存为 NumPy 文件
+    if is_test:
+        embedding_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_all_embedded-test.npy"
+        np.save(embedding_path, np.array(embeddings))  # 保存为 NumPy 文件
 
-    # 保存标签
-    label_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_labels.npy"
-    np.save(label_path, np.array(labels))  # 保存标签数据
+        embedding_trajectory_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_all_trajectory_embedded-test.npy"
+        np.save(embedding_trajectory_path, np.array(embeddings_trajectories))  # 保存为 NumPy 文件
+
+        # 保存标签
+        label_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_labels-test.npy"
+        np.save(label_path, np.array(labels))  # 保存标签数据
+    else:
+        embedding_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_all_embedded.npy"
+        np.save(embedding_path, np.array(embeddings))  # 保存为 NumPy 文件
+
+        embedding_trajectory_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_all_trajectory_embedded.npy"
+        np.save(embedding_trajectory_path, np.array(embeddings_trajectories))  # 保存为 NumPy 文件
+
+        # 保存标签
+        label_path = f"./dataset/Trajectory/embedded/window_{window_size}/{character}_labels.npy"
+        np.save(label_path, np.array(labels))  # 保存标签数据
 
 
 
@@ -318,4 +366,9 @@ class TrajectoryDataset(Dataset):
 
 
 if __name__ == '__main__':
-    pass
+    for window_size in range(2, 7):
+        for character in {"Slytherin", "Gryffindor", "Hufflepuff", "Ravenclaw", "Hogwarts"}:
+            get_trajectory_txt(character, window_size)
+            got_trajectory_embeded(window_size, character)
+            get_trajectory_txt(character, window_size, is_test=True)
+            got_trajectory_embeded(window_size, character, is_test=True)
