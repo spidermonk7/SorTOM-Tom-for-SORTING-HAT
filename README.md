@@ -2,63 +2,137 @@
 ![6651733464215_ pic](https://github.com/user-attachments/assets/f81a75d9-9b7b-49ec-882d-6aa9cc8ec49d)
 
 
+This repository implements a series of experiments to study the sorting hat mechanism, where the task is to predict a character's house at Hogwarts based on trajectories and mental representations over time. The experiments involve the use of machine learning models and embeddings to train and test sorting hat predictions, visualize the action distributions, analyze meta-learning capabilities, and more.
 
+## Table of Contents
 
-# Quick Start
+- [Project Overview](#project-overview)
+- [Installation](#installation)
+- [Experiments](#experiments)
+- [Data Preparation](#data-preparation)
+- [Usage](#usage)
+- [License](#license)
 
-`python experiment.py`
+## Project Overview
 
-# File Structure with explanation 
+The project is the Term Project of PKU-CORE:24-autumn of team Co-rejectors. It is designed to predict the behaviour of agents of characters (e.g., Gryffindor, Slytherin, Hufflepuff, Ravenclaw) based on their state-action sequence(namely, ALBUS) on text based D&D games(namely, GELLERT). The model is trained on different window sizes and evaluated on various tasks:
 
-## Cricial Files
+1. **Action Distribution Analysis**: Analysis of the distribution of actions in the dataset.
+2. **Demonstrating the effectiveness of mental state embedding.**: Examining the role of mental states in the sorting process, with results for different window sizes.
+3. **Meta-Learning**: Investigating the ability of the model to generalize from different training sets.
+4. **Character Embeddings**: Visualizing and analyzing character embeddings for better understanding of the model's behavior.
 
-### experiments.py
-Including codes for training Sorting-Hat models, and a possible analysis experiments of character embedding. 
+## Installation
 
-### data_generator.py
-All functions that could be used for loading data. 
-**F.Y.I**: If you've already embedded trajectory data with BERT, you can just load it with ***TrajectoryDataset*** 
+To run the experiments, you will need to set up the environment and install the required dependencies. Here's how you can do it:
 
+1. Clone the repository:
+    ```bash
+    git clone https://github.com/yourusername/hogwarts-sorting-hat.git
+    cd hogwarts-sorting-hat
+    ```
 
-### model.py
+2. Set up a virtual environment (optional but recommended):
+    ```bash
+    python -m venv venv
+    source venv/bin/activate   # On Windows use `venv\Scripts\activate`
+    ```
 
-Including models: SimpleMLP, SimpleRNN, SimpleLSTM, SimpleGRU
-Crucial models: StateEmbedding, CharaNet, MentNet, SortingHat
+3. Install the dependencies:
+    ```bash
+    pip install -r requirements.txt
+    ```
 
+4. Ensure that the necessary datasets are available. The data generation process is handled by the code, but the data must be prepared before running the experiments.
 
+## Experiments
 
-### utils.py
-Possible utils. 
+You can run different experiments by specifying the `--exp_id` argument when executing the `main.py` script. The available experiments are:
 
+1. **Train the model on all window sizes and characters**  
+    Exp ID: `0`  
+    This will train the model for all window sizes (2, 3, 4) and characters (Gryffindor, Slytherin, Hufflepuff, Ravenclaw, Hogwarts).
 
+    ```bash
+    python main.py --exp_id 0
+    ```
 
+2. **Action Distribution Analysis (Figure 3)**  
+    Exp ID: `1`  
+    This experiment analyzes the distribution of actions in the dataset.
 
+    ```bash
+    python main.py --exp_id 1
+    ```
 
-## Folder: Character_prompt_test
-This involve the code for generating data and adjusting prompts for different characters. **You don't need to read it during current stage.** 
+3. **Mental Health Analysis (Figure 4)**  
+    Exp ID: `2`  
+    This experiment checks the impact of mental states on model performance for different window sizes and characters.
 
-## Folder: datasets
-This involve all the things that can be called as "data" in our project till current stage, in which if:
+    ```bash
+    python main.py --exp_id 2
+    ```
 
+4. **Meta-Learning Analysis (Figure 5)**  
+    Exp ID: `3`  
+    This experiment investigates the meta-learning performance of the model, specifically how well it generalizes to unseen data.
 
-**You want to fix the window-overlapping problem** —— Go and check the folder **final_data_en** for the game recordings of 4 character players on 19 different game batches. 
+    ```bash
+    python main.py --exp_id 3
+    ```
 
-**You want to build up the final Sorting Hat** -- Focus on the **Trajectory** folders for splited(though with overlapping) text dataset(stored in JSON), you should first embed them with bert, than trying SortingHat models to get their Character Embeddings. 
-***Tips***:  
-(1) Check data_generator.py: ***get_trajectory_embeded*** method for help, it's convinient.  
+5. **Character Embedding Analysis (Figure 6)**  
+    Exp ID: `4`  
+    This experiment analyzes character embeddings to better understand the model's learned representations.
 
-(2) Use model.chara after calling forward method to got the recorded character state.     
+    ```bash
+    python main.py --exp_id 4
+    ```
 
-(3) You are strongly recommanded to build up a comprehensive SORTING-HAT based on bose charasteristic and Mental State(hidden state of MentNet, just try to take it into consideration). 
+## Data Preparation
 
+Before running the experiments, make sure the necessary datasets are ready. This is handled by the `prepear_data()` function, which will generate the required data files for training and testing. You can also manually ensure the data is available in the correct directories.
 
+Run the following command to prepare the data:
 
-## Folder: story_teller
-This involve the code for generating DND games and adjusting prompts for different scenarios. **You don't need to read it during current stage.**
+```bash
+python main.py --exp_id 0
+```
 
+This will trigger data generation and model training.
 
-## Folder: models
-Here stores the .pt file of trained SortingHat model, it is also the default path for model saving. 
-Initially, we present 5 models: SortingHat_{i}.pt, where i indicates the window size. 
+## Usage
 
+- To train the model for all window sizes and characters, use:
 
+    ```bash
+    python main.py --exp_id 0
+    ```
+
+- To run the action distribution analysis, use:
+
+    ```bash
+    python main.py --exp_id 1
+    ```
+
+- To check the mental health analysis results, use:
+
+    ```bash
+    python main.py --exp_id 2
+    ```
+
+- To explore the meta-learning performance, use:
+
+    ```bash
+    python main.py --exp_id 3
+    ```
+
+- To analyze character embeddings, use:
+
+    ```bash
+    python main.py --exp_id 4
+    ```
+
+## License
+
+This project is licensed under the HOGWARTS License ~
