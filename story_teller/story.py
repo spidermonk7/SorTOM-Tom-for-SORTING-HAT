@@ -116,7 +116,6 @@ class StoryTree:
                     if '玩家选择：' in response[i]:
                         response_dict['action_list'] = [action for action in possible_action_list if action in response[i]]
                 
-
                 # construct the children nodes
                 new_story_node = StoryNode(**response_dict)
                 story_node_list[top_id-1].children_id_list.append(len(story_node_list))
@@ -156,7 +155,7 @@ class StoryTree:
         file_dict = {}
         for story_node in story_node_list:
             file_dict[story_node.node_id] = story_node.get_info_dict()
-        np.save(os.path.join('../dataset/story_tree', f'story_tree__batch_id_{self.batch_id}.npy'), file_dict, allow_pickle=True)
+        np.save(os.path.join('./dataset/story_tree_en', f'story_tree__batch_id_{self.batch_id}_new.npy'), file_dict, allow_pickle=True)
 
     def load_story_tree(self, path = './dataset/story_tree_en/story_tree__batch_id_0.npy'):
         '''
@@ -190,11 +189,11 @@ class StoryTree:
     #         action_id = int(input())
     #         self.current_node_id = current_story_node.children_id_list[action_id]
 
-    def reset(self):
+    def reset(self, path = './dataset/story_tree_en/story_tree__batch_id_0.npy'):
         '''
         Reset the story
         '''
-        self.load_story_tree()
+        self.load_story_tree(path=path)
         self.current_node_id = 0
 
         

@@ -1,226 +1,124 @@
 from torch.utils.data import Dataset, DataLoader
-from transformers import BertTokenizer, BertModel
+from data_generator import *
 import torch
 import torch.nn as nn
+from utils import * 
 import numpy as np
-import json
+from time import time
 from tqdm import tqdm
-import os
 import matplotlib.pyplot as plt
-from model import StateEmbedding, SortingHat, CharaNet, MentNet, SimpleMLP, SimpleRNN, SimpleLSTM, SimpleGRU
-
+from model import SortingHat, FocalLoss
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KernelDensity
-from matplotlib.colors import LinearSegmentedColormap
-from sklearn.neighbors import KernelDensity
-from sklearn.preprocessing import MinMaxScaler
-from sklearn.decomposition import PCA
 from utils import *
+import matplotlib.pyplot as plt
+import seaborn as sns
+import torch.nn.functional as F
 
 
+softmax_layer = nn.Softmax(dim=1)
 
 
-device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-print(f"device is {device}")
+def action_distribution_ana():
+    plt.style.use('ggplot')
+    fig, ax = plt.subplots(1, 4, figsize=(32, 8))
 
-label_dic = {"Explore": 0, "Help": 1, "Refuse": 2, "Betray": 3, "Fight": 4, "Escape": 5}
+    ax = ax.flatten()
+    # add grid
+    colors = {'Gryffindor': '#FF6F61',  # 柔和红
+              'Hufflepuff': '#FFD700',  # 柔和黄
+              'Ravenclaw': '#6495ED',  # 柔和蓝
+              'Slytherin': '#3CB371'}  # 柔和绿
+
+    for idx, character in enumerate(["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw"]):
+        action_dict = {"Explore": 0, "Help": 0, "Refuse": 0, "Betray": 0, "Fight": 0, "Escape": 0}
+        CNmap = {"探索调查": "Explore", "帮助NPC": "Help", "拒绝NPC": "Refuse", "背叛NPC": "Betray", "战斗": "Fight", "逃跑": "Escape"}
+
+        dataset = load_data("dnd", character, batch_only_folder="all_batches")  # 确保这个函数能正确加载数据
+        for data in dataset:
+            for id, value in data.items():
+                action = value["action"]
+                if action in action_dict:
+                    if action == "Betray" and character == "Gryffindor":
+                        print(f"Betray in Gryffindor")
+                        print(value['current_obs'])
+                        print(value['valid_action'])
+                        print(value['action'])
+                        print(value['reason'])
+                        
+                    action_dict[action] += 1
+
+        test_sets = load_data("dnd", character, is_test=True, batch_only_folder="all_batches")
+        for data in test_sets:
+            for id, value in data.items():
+                action = value["action"]
+                if action in action_dict:
+                    action_dict[action] += 1
+
+         # normalize the action_dict
+        total = sum(action_dict.values())
+        for key in action_dict:
+            action_dict[key] /= total
+
+        ax[idx].bar(action_dict.keys(), action_dict.values(), color=colors[character], width=0.5)
+        ax[idx].set_title(character, fontsize=30)
+        ax[idx].tick_params(axis='x', labelsize=25)
+        ax[idx].set_ylim(0, 0.6)
+        ax[idx].grid(True)
+
+        # only show y label for the first plot
+        if idx != 0:
+            ax[idx].set_yticklabels([])
 
 
-class TextDataset(Dataset):
-    def __init__(self, character="Slytherin", alpha=[0.9], model_name='bert-base-uncased', max_length=230):
-        self.character = character
-        self.alpha = alpha
-        self.max_length = max_length
-        self.model_name = model_name
-        
-        # 加载预先保存的 BERT 嵌入数据
-        embeddings_path = f"./dataset/character_wise/embedded/{self.character}_all_embedded.npy"
-        self.embeddings = np.load(embeddings_path)  # 加载嵌入数据
+    # 将整个画布背景设置为透明
+    fig.patch.set_alpha(0)
 
-        # 加载标签
-        labels_path = f"./dataset/character_wise/embedded/{self.character}_labels.npy"
-        self.labels = np.load(labels_path)  # 加载标签数据
 
-    def __len__(self):
-        return len(self.embeddings)
-    
-    def __getitem__(self, idx):
-        embedded_state = torch.tensor(self.embeddings[idx])  # 加载预处理的嵌入
-        label = torch.tensor(self.labels[idx])  # 获取标签
-        return embedded_state, label
+    plt.tight_layout()  # 自动调整子图参数，使之填充整个图像区域
+    plt.savefig("action_distribution.png")
+    plt.show()
+
+    return action_dict
 
 
 ### Modified by Yichen
+def experiment2_Chara_Ment_Ss_A_prediction(window_size = 3, character = "Hogwarts", result_path = None, batch_only_folder = "all_batches"):
+    assert window_size in [2, 3, 4] , "window_size should be one of 2, 3, 4"
 
-class TrajectoryDataset(Dataset):
-    def __init__(self, character="Slytherin", alpha=[0.9], model_name='bert-base-uncased', max_length=230, window_size = 2, is_test=False):
-        self.character = character
-        self.alpha = alpha
-        self.max_length = max_length
-        self.model_name = model_name
-        
-        # 加载预先保存的 BERT 嵌入数据
-        if is_test:
-            embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_embedded-test.npy"
-            trajectory_embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_trajectory_embedded-test.npy"
-            self.embeddings = np.load(embeddings_path)  # 加载嵌入数据
-            self.traj_embeddings = np.load(trajectory_embeddings_path)  # 加载嵌入数据
+    test_dataset = TrajectoryDataset(character=character, alpha=0.9, window_size=window_size, is_test=True, batch_only_folder=batch_only_folder)
+    train_dataset = TrajectoryDataset(character=character, alpha=0.9, window_size=window_size, is_test=False, batch_only_folder=batch_only_folder)
 
-            # 加载标签
-            labels_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_labels-test.npy"
-            self.labels = np.load(labels_path)  # 加载标签数据
-
-        else:
-            embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_embedded-test.npy"
-            trajectory_embeddings_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_all_trajectory_embedded-test.npy"
-            self.embeddings = np.load(embeddings_path)  # 加载嵌入数据
-            self.traj_embeddings = np.load(trajectory_embeddings_path)  # 加载嵌入数据
-
-            # 加载标签
-            labels_path = f"./dataset/Trajectory/embedded/window_{window_size}/{self.character}_labels.npy"
-            self.labels = np.load(labels_path)  # 加载标签数据
-
-    def __len__(self):
-        return len(self.embeddings)
-    
-    def __getitem__(self, idx):
-        embedded_state = torch.tensor(self.embeddings[idx])  # 加载预处理的嵌入
-        trajction_embedded = torch.tensor(self.traj_embeddings[idx])
-        label = torch.tensor(self.labels[idx])  # 获取标签
-        return trajction_embedded, embedded_state, label
-
-
-
-
-def experiment1_Simple_S_A_prediction(model_name = "SimpleMLP", input_size=230, output_size=6, hidden_size=128):
-    # 训练函数
-    def train(model, train_loader, optimizer, loss_function, epoch):
-        model.train()
-        running_loss = 0.0
-        for train_data, train_label in tqdm(train_loader):
-            train_data = train_data.permute(1, 0, 2)
-            optimizer.zero_grad()
-            output = model(train_data)
-
-            loss = loss_function(output, train_label)
-            loss.backward()
-            optimizer.step()
-            running_loss += loss.item()
-
-        print(f"Epoch {epoch+1}: Train Loss is {running_loss/len(train_loader)}")
-    
-        return running_loss/len(train_loader)
-
-
-    # 验证函数
-    def validate(model, test_loader):
-        model.eval()
-        correct = 0
-        total = 0
-        with torch.no_grad():
-            for test_data, test_label in test_loader:
-                test_data = test_data.permute(1, 0, 2)
-                output = model(test_data)
-                _, predicted = torch.max(output, 1)
-                total += test_label.size(0)
-                correct += (predicted == test_label).sum().item()
-                loss = loss_function(output, test_label)
-
-        return correct / total,  loss.item()
-
-
-    assert model_name in ["SimpleMLP", "SimpleRNN", "SimpleLSTM", "SimpleGRU"], "model should be one of SimpleMLP, SimpleRNN, SimpleLSTM, SimpleGRU"
-
-    # switch the str model name to the class
-    model = eval(model_name)(input_size=input_size, output_size=output_size, hidden_size=hidden_size)
-
-    text_dataset = TextDataset(character='Hogwarts', alpha=0.9)
-    print(text_dataset.shape)
-    # split text dataset into train and test
-    train_size = int(0.9 * len(text_dataset))
-    test_size = len(text_dataset) - train_size
-    train_dataset, test_dataset = torch.utils.data.random_split(text_dataset, [train_size, test_size])
-    print(f"length of train set: {len(train_dataset)}, test set: {len(test_dataset)}")
     train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
     test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
 
-     # 设置优化器和损失函数
-    optimizer = torch.optim.Adam(params=model.parameters(), lr=0.0001)
-    loss_function = nn.CrossEntropyLoss()
-    
-    # 训练和验证
-    test_losses = []
-    train_losses = []
-    accs = []
-    epochs = 20
-    print("Start training...")
-    for epoch in range(epochs):
-        # 训练
-        train_loss = train(model, train_loader, optimizer, loss_function, epoch=epoch)
-        train_losses.append(train_loss)
-        # 验证
-        if epoch % 2 == 0:
-            accuracy, test_loss = validate(model, test_loader)
-            test_losses.append(test_loss)
-            accs.append(accuracy)
-            print(f"Epoch {epoch+1}: Validation Accuracy is {accuracy}")
+    sorthat_model = SortingHat().to(device)
+    optimizer = torch.optim.AdamW(params=sorthat_model.parameters(), lr=0.00001)
 
-    
-    fig, ax = plt.subplots(3, 1, figsize=(10, 15))
-    ax[0].plot(train_losses, label='Train Loss')
-    ax[0].set_title('Train Loss')
-    ax[0].set_xlabel('Epochs')
-    ax[0].set_ylabel('Loss')
-    ax[0].legend()
+    loss_weight = 1/(train_dataset.distribution)
+    loss_weight/=loss_weight.sum()
 
-    ax[1].plot(test_losses, label='Test Loss')
-    ax[1].set_title('Test Loss')
-    ax[1].set_xlabel('Epochs')
-    ax[1].set_ylabel('Loss')
-    ax[1].legend()
+    print(f"Now we are training our model on {character} with window size {window_size}")
+    print(f"length of train_loader is {len(train_loader)}")
+    print(f"length of test_loader is {len(test_loader)}")
+    print(f"the label distribution is {train_dataset.distribution}")
+    print(f"the label weights are {loss_weight}")
 
-    ax[2].plot(accs, label='Accuracy')
-    ax[2].set_title('Accuracy')
-    ax[2].set_xlabel('Epochs')
-    ax[2].set_ylabel('Accuracy')
-    ax[2].legend()
+    scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=40, gamma=0.1)
+    loss_function = FocalLoss(alpha=loss_weight, gamma=2.0, reduction='sum')
 
-    plt.tight_layout()
-    # add grid 
-    plt.grid(True)
-    plt.show()
-
-
-### Modified by Yichen
-def experiment2_Chara_Ment_Ss_A_prediction(window_size = 3):
-    assert window_size in [2, 3, 4, 5, 6] , "window_size should be one of 2, 3, 4"
-
-    test_dataset = TrajectoryDataset(character='Hogwarts', alpha=0.9, window_size=window_size, is_test=True)
-    train_dataset = TrajectoryDataset(character='Hogwarts', alpha=0.9, window_size=window_size, is_test=False)
-
-
-    # split train and test
-    # dataset = TrajectoryDataset(character='Hogwarts', alpha=0.9, window_size=window_size, is_test=False)
-    # train_size = int(0.9*len(dataset))
-    # test_size = len(dataset)-train_size
-    # train_dataset, test_dataset = torch.utils.data.random_split(dataset, [train_size, test_size])
-
-    train_loader = DataLoader(train_dataset, batch_size=1, shuffle=True)
-    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=True)
-
-    sorthat_model = SortingHat(window_size = window_size, chara_embedding_size = 200, hidden_size=128, output_size=6, len_state_embedding = 200)
-
-    optimizer = torch.optim.Adam(params=sorthat_model.parameters(), lr=0.00001)
-    loss_function = nn.CrossEntropyLoss()
-
-    epochs = 100
+    epochs = 40
     test_losses = []
     train_losses = []
     accs = []
     print("Start training...")
+    max_acc = 0
     for epoch in tqdm(range(epochs)):
         losses = []
         for train_trajectory, train_data, train_label in train_loader:
+            train_data = train_data.to(device)
+            train_label = train_label.to(device)
+            train_trajectory = train_trajectory.to(device)
             optimizer.zero_grad()
             output = sorthat_model(train_trajectory, train_data)
             loss = loss_function(output, train_label)
@@ -233,173 +131,253 @@ def experiment2_Chara_Ment_Ss_A_prediction(window_size = 3):
 
         with torch.no_grad():
             correct = 0
+            total_samples = len(test_loader.dataset)  # 测试集总样本数
+
             for test_trajectory, test_data, test_label in test_loader:
-                output = sorthat_model(test_trajectory, test_data)
+                test_data = test_data.to(device)
+                test_label = test_label.to(device)
+                test_trajectory = test_trajectory.to(device)
+                output = sorthat_model(test_trajectory, test_data)  # 模型输出
+                loss = loss_function(output, test_label)
+
+                pred = torch.argmax(output, dim=1)
+                correct += (pred == test_label).sum().item()
+
+            # 计算准确率
+            acc = correct / total_samples
+
+            # 保存最佳模型
+            if acc >= max_acc:
+                max_acc = acc    
+                torch.save(sorthat_model.state_dict(), f"./models/{batch_only_folder}/SortingHat_{character}_{window_size}.pt")
+
+            test_losses.append(loss.item())  # 保存最后一个批次的测试损失
+            accs.append(acc)
+
+        scheduler.step()
+
+    if result_path is not None:
+        fig, ax = plt.subplots(3, 1, figsize=(10, 15))
+        ax[0].plot(train_losses, label='Train Loss')
+        ax[0].set_title('Train Loss')
+        ax[0].set_xlabel('Epochs')
+        ax[0].set_ylabel('Loss')
+        ax[0].legend()
+
+        ax[1].plot(test_losses, label='Test Loss')
+        ax[1].set_title('Test Loss')
+        ax[1].set_xlabel('Epochs')
+        ax[1].set_ylabel('Loss')
+        ax[1].legend()
+
+        ax[2].plot(accs, label='Accuracy')
+        ax[2].set_title('Accuracy')
+        ax[2].set_xlabel('Epochs')
+        ax[2].set_ylabel('Accuracy')
+        ax[2].legend()
+        # set title
+        fig.suptitle(f"Training SortingHat on {character} with window size {window_size}", fontsize=16)
+
+        plt.tight_layout()
+        # add grid
+        plt.grid(True)
+
+        check_path(f"{result_path}")
+        plt.savefig(f"{result_path}/SortingHat_{character}_"+str(window_size)+".png")
+        
+    # save the model/only the parameters
+    check_path(f"./models/{batch_only_folder}")
+    # np.save(f"./results/{batch_only_folder}/{character}_accs.npy", np.array(accs))
+
+
+def experiment_different_model_data_test(model_character = "Hogwarts", data_character = "Hogwarts", window_size = 3, batch_only_folder = "all_batches"):
+    test_dataset = TrajectoryDataset(character=data_character, alpha=0.9, window_size=window_size, is_test=True, batch_only_folder=batch_only_folder)
+    test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+    sorthat_model = SortingHat()
+   
+    sorthat_model.load_state_dict(torch.load(f"./models/{batch_only_folder}/SortingHat_{model_character}_{window_size}.pt", map_location=torch.device('cpu'), weights_only=True))
+
+    loss_function = nn.CrossEntropyLoss()
+    with torch.no_grad():
+        correct = 0
+        for test_trajectory, test_data, test_label in test_loader:
+            output = sorthat_model(test_trajectory, test_data)
+            loss = loss_function(output, test_label)
+            
+            output = softmax_layer(output)
+            pred = torch.argmax(output)
+            if pred == test_label:
+                correct += 1
+        acc = correct / len(test_loader)
+        print(f"Accuracy of model trained on {model_character} and tested on {data_character} is {acc}")
+    return acc
+
+
+def check_results_of_different_windowsize(model_character = "Hogwarts", window_sizes = [2, 3, 4], batch_only_folder = "all_batches", zero_trajectory = False):
+    accs = []
+    for window_size in window_sizes:
+        model = SortingHat()
+        model.load_state_dict(torch.load(f"./models/{batch_only_folder}/SortingHat_{model_character}_{window_size}.pt", map_location=torch.device('cpu'), weights_only=True))
+        print(f"model loaded...")
+
+        test_dataset = TrajectoryDataset(character=model_character, alpha=0.9, window_size=window_size, is_test=True, batch_only_folder=batch_only_folder, zero_trajectory=zero_trajectory)
+        test_loader = DataLoader(test_dataset, batch_size=1, shuffle=False)
+
+        loss_function = nn.CrossEntropyLoss()
+        with torch.no_grad():
+            correct = 0
+            for test_trajectory, test_data, test_label in test_loader:
+                output = model(test_trajectory, test_data)
                 loss = loss_function(output, test_label)
                 
                 pred = torch.argmax(output)
                 if pred == test_label:
                     correct += 1
-            test_losses.append(loss.item())
-
             acc = correct / len(test_loader)
             accs.append(acc)
-        #     print(f"Epoch {epoch+1}: Validation Accuracy is {acc}")
-        # print(f"Epoch {epoch+1}: Train Loss is {train_losses[-1]}")
-
-
-    fig, ax = plt.subplots(3, 1, figsize=(10, 15))
-    ax[0].plot(train_losses, label='Train Loss')
-    ax[0].set_title('Train Loss')
-    ax[0].set_xlabel('Epochs')
-    ax[0].set_ylabel('Loss')
-    ax[0].legend()
-
-    ax[1].plot(test_losses, label='Test Loss')
-    ax[1].set_title('Test Loss')
-    ax[1].set_xlabel('Epochs')
-    ax[1].set_ylabel('Loss')
-    ax[1].legend()
-
-    ax[2].plot(accs, label='Accuracy')
-    ax[2].set_title('Accuracy')
-    ax[2].set_xlabel('Epochs')
-    ax[2].set_ylabel('Accuracy')
-    ax[2].legend()
-
-    plt.tight_layout()
-    # add grid
-    plt.grid(True)
-
-
-    check_path("./results")
-    plt.savefig("./results/SortingHat_"+str(window_size)+".png")
-    
-
-
-    # save the model/only the parameters
-    check_path("./models")
-    torch.save(sorthat_model.state_dict(), f"./models/SortingHat_{window_size}.pt")
-  
-
-# 定义基础颜色
-colors = {
-    'Gryffindor': '#FF6F61', 
-    'Hufflepuff': '#FFD700', 
-    'Ravenclaw': '#6495ED', 
-    'Slytherin': '#3CB371'
-}
-
-def create_custom_cmap(base_color):
-    """
-    根据基础颜色创建渐变 colormap，从深色到白色
-    """
-    from matplotlib.colors import to_rgba
-    base_rgb = to_rgba(base_color)  # 转换为 RGBA 格式
-    white_rgb = (1, 1, 1, 1)  # 白色
-    return LinearSegmentedColormap.from_list(f"{base_color}_cmap", [white_rgb, base_rgb])
+    # save the results
+    check_path(f"./results/{batch_only_folder}")
+    if zero_trajectory:
+        np.save(f"./results/{batch_only_folder}/{model_character}_accs_zero_trajectory.npy", np.array(accs))
+    else:
+        np.save(f"./results/{batch_only_folder}/{model_character}_accs.npy", np.array(accs))
 
 
 def character_ana(window_size=3):
-    # 加载预训练模型
-    model = SortingHat(window_size=window_size, chara_embedding_size=200, hidden_size=128, output_size=6, len_state_embedding=200)
-    model.load_state_dict(torch.load(f"./models/SortingHat_{window_size}.pt"))
+    model = SortingHat()
+   
+    model.load_state_dict(torch.load(f"./models/all_batches/SortingHat_Hogwarts_{window_size}.pt",map_location=torch.device('cpu'), weights_only=True))
     print(f"model loaded...")
-    
-    # 加载数据集
-    Gryffindor_dataset = TrajectoryDataset(character='Gryffindor', alpha=0.9, window_size=window_size)
-    Hufflepuff_dataset = TrajectoryDataset(character='Hufflepuff', alpha=0.9, window_size=window_size)
-    Ravenclaw_dataset = TrajectoryDataset(character='Ravenclaw', alpha=0.9, window_size=window_size)
-    Slytherin_dataset = TrajectoryDataset(character='Slytherin', alpha=0.9, window_size=window_size)
-    print(f"data loaded...")
-    
-    dic_embeddings = {"Gryffindor": [], "Hufflepuff": [], "Ravenclaw": [], "Slytherin": []}
 
-    # 提取每个数据集的 embeddings
+    Gryffindor_dataset = TrajectoryDataset(character='Gryffindor', alpha=0.9, window_size=window_size, is_test=False, batch_only_folder="all_batches")
+    Hufflepuff_dataset = TrajectoryDataset(character='Hufflepuff', alpha=0.9, window_size=window_size, is_test=False, batch_only_folder="all_batches")
+    Ravenclaw_dataset = TrajectoryDataset(character='Ravenclaw', alpha=0.9, window_size=window_size, is_test=False, batch_only_folder="all_batches")
+    Slytherin_dataset = TrajectoryDataset(character='Slytherin', alpha=0.9, window_size=window_size, is_test=False, batch_only_folder="all_batches")
+    print(f"data loaded...")
+
+    dic_embeddings = {"Gryffindor": [], "Slytherin": [], "Hufflepuff": [], "Ravenclaw": []}
+
+    # 提取 embeddings
     for dataset in [Gryffindor_dataset, Hufflepuff_dataset, Ravenclaw_dataset, Slytherin_dataset]:
         loader = DataLoader(dataset, batch_size=1, shuffle=False)
         with torch.no_grad():
-            for trajectory, data, label in tqdm(loader, desc=f"character {dataset.character}"):
+            for trajectory, data, label in loader:
                 output = model(trajectory, data)
                 character_embed = model.chara
                 dic_embeddings[dataset.character].append(character_embed.squeeze(0).numpy())
-    
-    # 使用 PCA 将 embeddings 降维到 2D
+
     embeddings = []
     labels = []
+
     for key in dic_embeddings:
         embeddings.extend(dic_embeddings[key])
         labels += [key] * len(dic_embeddings[key])
-    
+
     embeddings = np.array(embeddings)
-    print(f"shape of embeddings is {embeddings.shape}")
-    
-    # PCA降维
     pca = PCA(n_components=2)
-    embeddings = embeddings.reshape(-1, 200)
-    print(f"shape of embeddings is {embeddings.shape}")
+    embeddings = embeddings.reshape(embeddings.shape[0], -1)
     pca_embeddings = pca.fit_transform(embeddings)
-    print(f"length of pca_embeddings is {len(pca_embeddings)}")
+   
 
-    # 创建图形和子图
-    fig, axes = plt.subplots(2, 2, figsize=(12, 12))  # 创建四个子图
+    plt.style.use('ggplot')
+    fig, axes = plt.subplots(1, 4, figsize=(12, 3))
     axes = axes.flatten()
+    # 定义坐标范围
+    x_min, x_max = -3, 3
+    y_min, y_max = -2, 2
+    xx, yy = np.meshgrid(np.linspace(x_min, x_max, 200), np.linspace(y_min, y_max, 200))
+    grid = np.vstack([xx.ravel(), yy.ravel()]).T
 
-    # 定义每个学院的颜色和索引
     for idx, character in enumerate(dic_embeddings.keys()):
-        # 获取当前学院的 PCA 降维结果
-        char_embeddings = np.array(dic_embeddings[character]).reshape(-1, 200)
+        char_embeddings = np.array(dic_embeddings[character]).reshape(-1, embeddings.shape[1])
         pca_char_embeddings = pca.transform(char_embeddings)
-        
-        # 核密度估计
+
+        # 对该角色数据进行KDE拟合
         kde = KernelDensity(kernel='gaussian', bandwidth=0.5)
         kde.fit(pca_char_embeddings)
-
-        # 生成网格用于评估密度
-        x_min, x_max = pca_char_embeddings[:, 0].min() - 1, pca_char_embeddings[:, 0].max() + 1
-        y_min, y_max = pca_char_embeddings[:, 1].min() - 1, pca_char_embeddings[:, 1].max() + 1
-        xx, yy = np.meshgrid(np.linspace(x_min, x_max, 100), np.linspace(y_min, y_max, 100))
-        grid = np.vstack([xx.ravel(), yy.ravel()]).T
-        
-        # 计算网格点的密度值
+        # 对固定坐标范围的网格点计算密度值
         log_dens = kde.score_samples(grid)
         dens = np.exp(log_dens).reshape(xx.shape)
 
-        # 获取基础颜色并创建渐变色图
         base_color = colors[character]
         custom_cmap = create_custom_cmap(base_color)
+        ax = axes[idx]
 
-        # 绘制热力图
-        ax = axes[idx]  # 当前子图
-        ax.contourf(xx, yy, dens, 20, cmap=custom_cmap, alpha=0.8)  # 使用自定义的渐变色图显示密度
-        ax.scatter(pca_char_embeddings[:, 0], pca_char_embeddings[:, 1], color=base_color, label=character, s=10)
+        # 绘制多级等高线图
+        max_density = dens.max()
+        levels = np.linspace(max_density/80, max_density, 8)
+        contour_lines = ax.contour(xx, yy, dens, levels=levels, colors=base_color, alpha=0.5)
+        ax.contourf(xx, yy, dens, levels=levels, cmap=custom_cmap, alpha=0.8)
+        if idx == 0:
+            ax.set_ylabel("PCA-E2")
+        ax.set_xlabel("PCA-e1")
+        ax.set_facecolor('#f0f0f0')
+        ax.grid(color='white', linestyle='-', linewidth=1)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+
+        ax.set_xticks([])
+        ax.set_yticks([])
+
+        # 固定坐标范围
+        ax.set_xlim(x_min, x_max)
+        ax.set_ylim(y_min, y_max)
+    # plt.set_xlabels("E1")
+    plt.tight_layout()
+    check_path(f"./results/all_batches/character_embeddings/PCA_2")
+    plt.savefig(f"./results/all_batches/character_embeddings/PCA_2/Hogwarts_embedding_heatmap_window{window_size}_subplots_fixed_range.png")
+    plt.show()
 
 
-        # 添加标题、坐标轴标签和网格
-        ax.set_title(f"{character} Embedding Heatmap")
-        ax.set_xlabel("PCA Component 1")
-        ax.set_ylabel("PCA Component 2")
-        ax.grid(True)
-        ax.legend(loc='upper right')
+def plot_curves():
+    plt.style.use('ggplot')  # 使用内置样式
+    # 数据和配色
+    x_labels = ["2", "3", "4"]
+    characters = ["Hogwarts", "Gryffindor", "Hufflepuff", "Ravenclaw", "Slytherin"]
+    # color_list = ["black", "red", "gold", "blue", "green"]
+    
+    # 将x_labels转换为数值坐标
+    x = np.arange(len(x_labels))
+    width = 0.15  # 每个柱子的宽度，可根据需要调节
 
-   
+    # fig = plt.figure(figsize=(10, 6))
+    fig, axes = plt.subplots(1, 5, figsize=(20, 4))
+    # 标题和坐标轴标签
 
-    # 保存热力图
-    plt.tight_layout()  # 调整布局，避免重叠
+    # 绘制每个角色的柱状图
+    for i, character in enumerate(characters):
+        axes[i].set_title(f"{character}", fontsize=14, fontweight='bold')
+        accs_zero = np.load(f"./results/all_batches/{character}_accs_zero_trajectory.npy")
+        accs = np.load(f"./results/all_batches/{character}_accs.npy")
+        
+        # plot zero case with a lighter purple
+        axes[i].plot(x, accs_zero, label=f"M off", color='pink', linewidth=2, marker='o', markersize=6)
+        axes[i].plot(x, accs, label=f"M on", color=colors[character], linewidth=2, marker='o', markersize=6)
+        axes[i].text(x[-1] + 0.1, accs[-1], s = '', fontsize=12, color=colors[character])
+        axes[i].xlabel = "Window Size"
+        axes[i].ylabel = "Test Accuracy"
+    
+        axes[i].set_xticks(x)  # 设置x轴刻度
+        axes[i].set_xticklabels(x_labels, fontsize=12)  # 设置x轴刻度标签
 
-    check_path("./results")
+        axes[i].legend(fontsize=12, loc='upper left')
 
-    plt.savefig(f"./results/Hogwarts_embedding_heatmap_window{window_size}_subplots.png")
-    plt.show()  # 显示图形
+
+    # plt.ylim(0, 0.6)  # 设置y轴范围
+    # # 显示图例
+    # plt.legend(fontsize=12, loc='upper left')
+    plt.style.use('ggplot')  # 使用内置样式
+    # 添加网格线
+    plt.grid(axis='y', linestyle='--', linewidth=1, alpha=0.7)
+    plt.tight_layout()
+    plt.savefig(f"./results/accs.png", dpi=300)
+    plt.show()
+
+
+
+
 
 # 主函数
 if __name__ == "__main__":
-    # print(f"====Experiment 1: Simple State and Action Prediction====")
-    # experiment1_Simple_S_A_prediction(model_name = "SimpleMLP", input_size=230, output_size=6, hidden_size=128)
-    print(f"====Experiment 2: Character, Ment and State Action Prediction====")
-    for i in range(2, 7):
-        print("########### Window Size = "+str(i)+" ##############")
-        experiment2_Chara_Ment_Ss_A_prediction(window_size=i)
-        character_ana(window_size=i)
-
-
+    pass

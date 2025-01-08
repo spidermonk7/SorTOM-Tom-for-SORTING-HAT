@@ -58,7 +58,7 @@ def parse_obs_dnd(obs, history, valid_action, his_len = 3):
     for id, value in history.items():
         state, action, reason, valid = value
         step_id = len(history) - id
-        history_prompt += f"{step_id} steps before, you observed:\n {state} You took the action:\n {action}\n"
+        history_prompt += f"**{step_id}** steps before, you observed:\n {value[state]}\n You took the action: **{value[action]}**"
     
     obs_prompt = f"**Now you observed the current state:**\n {str(obs)}\n"
     valid_action_prompt = "The cuurent valid actions are: \n"

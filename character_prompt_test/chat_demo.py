@@ -2,13 +2,13 @@ import os
 import openai
 from .utils import *
 
-openai.api_key = "sk-MSSwI7MgizQFSyUE64359c5000D64b518cCc7c00F30e0321"
+openai.api_key = "sk-VpHQwCIkYGslHgM5990c07C057184fC2AcB9Ef81543dC2E6"
 openai.base_url = "https://api.gpt.ge/v1/"
 # openai.base_url = "https://api.v3.cm/v1/"
 openai.default_headers = {"x-foo": "true"}
 
 
-def generate_answer(prompt, character, game, model = 'gpt-4o-2024-08-06', max_tokens = 100, debug = False):
+def generate_answer(prompt, character, game, model = 'gpt-4o-2024-11-20', max_tokens = 100, debug = False):
     prompt_path = "character_prompt_test/prompts/characters/" + character + ".md"
     assert character in ["Gryffindor", "Hufflepuff", "Ravenclaw", "Slytherin"], "The character is not supported"    
     with open(prompt_path, "r") as file:
@@ -21,7 +21,7 @@ def generate_answer(prompt, character, game, model = 'gpt-4o-2024-08-06', max_to
 
     system_prompt = system_prompt + game_prompt
     if game == "dnd":
-        prompt = "Now you got the input state: \n" + prompt + "\n"
+        prompt += '\n'
     else:
         prompt = "Now you got the input state: \n" + parse_obs(prompt, game=game) + "\n"
 
