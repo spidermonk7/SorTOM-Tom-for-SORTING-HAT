@@ -1,19 +1,17 @@
-from torch.utils.data import Dataset, DataLoader
-from data_generator import *
 import torch
 import torch.nn as nn
-from utils import * 
+import torch.nn.functional as F
+from torch.utils.data import Dataset, DataLoader
 import numpy as np
-from time import time
 from tqdm import tqdm
 import matplotlib.pyplot as plt
-from model import SortingHat, FocalLoss
+
 from sklearn.decomposition import PCA
 from sklearn.neighbors import KernelDensity
+
 from utils import *
-import matplotlib.pyplot as plt
-import seaborn as sns
-import torch.nn.functional as F
+from data_generator import *
+from model import SortingHat, FocalLoss
 
 
 softmax_layer = nn.Softmax(dim=1)

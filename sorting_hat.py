@@ -1,38 +1,21 @@
 from story_teller.story import StoryTree
-from character_prompt_test.chat_demo import generate_answer
-from character_prompt_test.utils import colleges_map, parse_answer, parse_obs_dnd
-import numpy as np
-import json
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-import os
-import openai
-from utils import *
-from data_generator import get_trajectory_txt, got_trajectory_embeded, TrajectoryDataset
-import random
-import torch
-from transformers import BertTokenizer, BertModel
-from model import SortingHat
-from torch.utils.data import Dataset, DataLoader
-from sklearn.decomposition import PCA
-from sklearn.neighbors import KernelDensity
 
-from torch.utils.data import Dataset, DataLoader
-from data_generator import *
-import torch
-import torch.nn as nn
-from utils import * 
-import numpy as np
+
+import os
+import json
 import time
-from tqdm import tqdm
-import matplotlib.pyplot as plt
-from model import SortingHat, FocalLoss
-from sklearn.decomposition import PCA
+import torch
+from torch.utils.data import DataLoader
+import numpy as np
+
 from sklearn.neighbors import KernelDensity
-from utils import *
 import matplotlib.pyplot as plt
+from tqdm import tqdm
 import seaborn as sns
-import torch.nn.functional as F
+
+from utils import * 
+from model import SortingHat
+from data_generator import *
 
 
 CNmap = {"探索调查": "Explore", "帮助NPC": "Help", "拒绝NPC": "Refuse", "背叛NPC": "Betray", "战斗": "Fight", "逃跑": "Escape"}
