@@ -20,7 +20,7 @@ For more details, please check our [report](SortingHat_Report.pdf).
 1. **Action Distribution Analysis**: Analysis of the distribution of actions in the dataset.
 2. **Demonstrating the effectiveness of mental state embedding.**: Examining the role of mental states in the sorting process, with results for different window sizes.
 3. **Meta-Learning**: Investigating the ability of the model to generalize from different training sets.
-4. **Character Embeddings**: Visualizing and analyzing character embeddings for better understanding of the model's behavior.
+4. **Character Embeddings**: Visualizing and analyzing character embeddings for a better understanding of the model's behavior.
 
 ## Installation
 
@@ -62,7 +62,7 @@ This will trigger data generation.
 ## Experiments
 
 **Attention!**
-Because the randomness of training process, since we offered our trained model, to got exactly the same result as we did, we strongly recoomend you to run experiments id 1-4 before you try to re-train the models by running [exp_id 0]
+Because of the randomness of the training process, since we offered our trained model, to get exactly the same result as we did, we strongly recommend you to run experiments id 1-4 before you try to re-train the models by running [exp_id 0]
 
 You can run different experiments by specifying the `--exp_id` argument when executing the `main.py` script. The available experiments are:
 
@@ -109,7 +109,7 @@ You can run different experiments by specifying the `--exp_id` argument when exe
 
 5. **Character Embedding Analysis (Figure 6)**  
     Exp ID: `4`  
-    This experiment analyzes character embeddings to better understand the model's learned representations.
+    This experiment analyzes character embeddings to understand the model's learned representations better.
 
     ```bash
     python main.py --exp_id 4
@@ -120,7 +120,7 @@ You can run different experiments by specifying the `--exp_id` argument when exe
    
 ## Finding Your House
 
-We present a complete program for you to use our Sorting Hat model. Simply run the following command:
+We present a complete program for you to use our Sorting Hat model. Run the following command:
 
 ```bash
 python sorting_hat.py
