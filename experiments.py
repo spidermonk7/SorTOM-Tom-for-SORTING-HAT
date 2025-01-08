@@ -13,7 +13,6 @@ from utils import *
 from data_generator import *
 from model import SortingHat, FocalLoss
 
-
 softmax_layer = nn.Softmax(dim=1)
 
 

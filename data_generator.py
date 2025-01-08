@@ -11,7 +11,7 @@ from utils import *
 import torch
 from transformers import BertTokenizer, BertModel
 from torch.utils.data import Dataset, DataLoader
-import random
+
 
 
 # 加载 BERT tokenizer 和模型

@@ -1,6 +1,5 @@
 from story_teller.story import StoryTree
 
-
 import os
 import json
 import time
