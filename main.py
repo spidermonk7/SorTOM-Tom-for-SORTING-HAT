@@ -6,7 +6,6 @@ from data_generator import get_trajectory_txt, got_trajectory_embeded
 # DONE
 def train_all(window_sizes = [2, 3, 4], characters = ["Gryffindor", "Slytherin", "Hufflepuff", "Ravenclaw", "Hogwarts"], device = device):
     # Check if data is ready
-    prepear_data(window_sizes=window_sizes, characters=characters)
     print(f"Datasets are ready!!! Now start training the model....")
     for window_size in window_sizes:
         for character in characters:
@@ -119,7 +118,7 @@ if __name__ == "__main__":
 
 
     print(f"Before starting the experiment, please make sure the data is ready!!!")
-    prepear_data()
+
 
 
     if args.exp_id == 1:
@@ -136,6 +135,10 @@ if __name__ == "__main__":
 
     elif args.exp_id == 0:
         train_all()
+
+    elif args.exp_id == -1:
+        prepear_data()
+
     else:
-        print("ERROR! The experiment id should be in [0, 1, 2, 3, 4], please follow the instruction in the README file.")
+        print("ERROR! The experiment id should be in [-1, 0, 1, 2, 3, 4], please follow the instruction in the README file.")
 
