@@ -14,7 +14,7 @@
 
 This repository implements a series of experiments to study the sorting hat mechanism, where the task is to predict a character's house at Hogwarts based on trajectories and mental representations over time. The experiments involve the use of machine learning models and embeddings to train and test sorting hat predictions, visualize the action distributions, analyze meta-learning capabilities, and more. 
 
-For more details, please check our [report](SortingHat-Report.pdf). 
+For more details, please check our [report](SortingHat_Report.pdf). 
 
 
 1. **Action Distribution Analysis**: Analysis of the distribution of actions in the dataset.
